@@ -515,27 +515,28 @@ export class NHentaiExtension implements NHentaiImplementation {
     return this.fetchJson<Gallery>(request);
   }
 
-  private async fetchText(request: Request): Promise<string> {
-    const [response, data] = await Application.scheduleRequest(request);
-    this.checkCloudflareStatus(response.status);
-    return Application.arrayBufferToUTF8String(data);
+private async fetchJson<T>(request: Request): Promise<T> {
+  const text = await this.fetchText(request);
+
+  // Guard against Cloudflare HTML challenge pages returning 200
+  if (text.trimStart().startsWith("<")) {
+    throw new CloudflareError({ url: request.url, method: "GET" });
   }
 
-  private async fetchJson<T>(request: Request): Promise<T> {
-    const text = await this.fetchText(request);
-    const parsed = JSON.parse(text) as T & { error?: string };
+  const parsed = JSON.parse(text) as T & { error?: string };
 
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      "error" in parsed &&
-      parsed.error
-    ) {
-      throw new Error(parsed.error);
-    }
-
-    return parsed;
+  if (
+    parsed &&
+    typeof parsed === "object" &&
+    "error" in parsed &&
+    parsed.error
+  ) {
+    throw new Error(parsed.error);
   }
+
+  return parsed;
+}
+
 
   private async getPopularTags(): Promise<TagDefinition[]> {
     if (this.popularTagsCache) {
